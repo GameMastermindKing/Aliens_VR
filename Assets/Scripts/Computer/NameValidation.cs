@@ -185,7 +185,7 @@ public class NameValidation : MonoBehaviour
 
     public string GetFixName()
     {
-        return babyNames[Random.Range(0, babyNames.Count)];
+        return babyNames[Random.Range(0, babyNames.Count)] + Random.Range(0, 10000000).ToString("0000000");
     }
 
     public bool NameHasSymbols(string name)

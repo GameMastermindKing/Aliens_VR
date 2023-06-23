@@ -8,6 +8,7 @@ namespace DitzelGames.FastIK
     /// <summary>
     /// Fabrik IK Solver
     /// </summary>
+    [ExecuteInEditMode]
     public class FastIKFabric : MonoBehaviour
     {
         /// <summary>
@@ -31,6 +32,7 @@ namespace DitzelGames.FastIK
         /// Distance when the solver stops
         /// </summary>
         public float Delta = 0.001f;
+        public bool matchOrigin = false;
 
         /// <summary>
         /// Strength of going back to the start position.
@@ -41,9 +43,11 @@ namespace DitzelGames.FastIK
 
         protected float[] BonesLength; //Target to Origin
         protected float CompleteLength;
+        public bool simulateInEditor;
         protected Transform[] Bones;
         protected Vector3[] Positions;
         protected Vector3[] StartDirectionSucc;
+        public Vector3 offsetFinal;
         protected Quaternion[] StartRotationBone;
         protected Quaternion StartRotationTarget;
         protected Transform Root;
@@ -52,68 +56,74 @@ namespace DitzelGames.FastIK
         // Start is called before the first frame update
         void Awake()
         {
-            Init();
+            if (simulateInEditor || Application.isPlaying)
+            {
+                Init();
+            }
         }
 
         void Init()
         {
-            //initial array
-            Bones = new Transform[ChainLength + 1];
-            Positions = new Vector3[ChainLength + 1];
-            BonesLength = new float[ChainLength];
-            StartDirectionSucc = new Vector3[ChainLength + 1];
-            StartRotationBone = new Quaternion[ChainLength + 1];
-
-            //find root
-            Root = transform;
-            for (var i = 0; i <= ChainLength; i++)
+            if (simulateInEditor || Application.isPlaying)
             {
-                if (Root == null)
-                    throw new UnityException("The chain value is longer than the ancestor chain!");
-                Root = Root.parent;
-            }
+                //initial array
+                Bones = new Transform[ChainLength + 1];
+                Positions = new Vector3[ChainLength + 1];
+                BonesLength = new float[ChainLength];
+                StartDirectionSucc = new Vector3[ChainLength + 1];
+                StartRotationBone = new Quaternion[ChainLength + 1];
 
-            //init target
-            if (Target == null)
-            {
-                Target = new GameObject(gameObject.name + " Target").transform;
-                SetPositionRootSpace(Target, GetPositionRootSpace(transform));
-            }
-            StartRotationTarget = GetRotationRootSpace(Target);
-
-
-            //init data
-            var current = transform;
-            CompleteLength = 0;
-            for (var i = Bones.Length - 1; i >= 0; i--)
-            {
-                Bones[i] = current;
-                StartRotationBone[i] = GetRotationRootSpace(current);
-
-                if (i == Bones.Length - 1)
+                //find root
+                Root = transform;
+                for (var i = 0; i <= ChainLength; i++)
                 {
-                    //leaf
-                    StartDirectionSucc[i] = GetPositionRootSpace(Target) - GetPositionRootSpace(current);
-                }
-                else
-                {
-                    //mid bone
-                    StartDirectionSucc[i] = GetPositionRootSpace(Bones[i + 1]) - GetPositionRootSpace(current);
-                    BonesLength[i] = StartDirectionSucc[i].magnitude;
-                    CompleteLength += BonesLength[i];
+                    if (Root == null)
+                        throw new UnityException("The chain value is longer than the ancestor chain!");
+                    Root = Root.parent;
                 }
 
-                current = current.parent;
+                //init target
+                if (Target == null)
+                {
+                    Target = new GameObject(gameObject.name + " Target").transform;
+                    SetPositionRootSpace(Target, GetPositionRootSpace(transform));
+                }
+                StartRotationTarget = GetRotationRootSpace(Target);
+
+
+                //init data
+                var current = transform;
+                CompleteLength = 0;
+                for (var i = Bones.Length - 1; i >= 0; i--)
+                {
+                    Bones[i] = current;
+                    StartRotationBone[i] = GetRotationRootSpace(current);
+
+                    if (i == Bones.Length - 1)
+                    {
+                        //leaf
+                        StartDirectionSucc[i] = GetPositionRootSpace(Target) - GetPositionRootSpace(current);
+                    }
+                    else
+                    {
+                        //mid bone
+                        StartDirectionSucc[i] = GetPositionRootSpace(Bones[i + 1]) - GetPositionRootSpace(current);
+                        BonesLength[i] = StartDirectionSucc[i].magnitude;
+                        CompleteLength += BonesLength[i];
+                    }
+
+                    current = current.parent;
+                }
             }
-
-
-
         }
 
         // Update is called once per frame
         void LateUpdate()
         {
-            ResolveIK();
+            if (simulateInEditor || Application.isPlaying)
+            {
+                ResolveIK();
+            }
         }
 
         private void ResolveIK()
@@ -191,9 +201,21 @@ namespace DitzelGames.FastIK
             for (int i = 0; i < Positions.Length; i++)
             {
                 if (i == Positions.Length - 1)
-                    SetRotationRootSpace(Bones[i], Quaternion.Inverse(targetRotation) * StartRotationTarget * Quaternion.Inverse(StartRotationBone[i]));
+                {
+                    if (i == Bones.Length - 1 && matchOrigin)
+                    {
+                        Bones[i].rotation = Target.rotation;
+                        Bones[i].Rotate(offsetFinal, Space.Self);
+                    }
+                    else
+                    {
+                        SetRotationRootSpace(Bones[i], Quaternion.Inverse(targetRotation) * StartRotationTarget * Quaternion.Inverse(StartRotationBone[i]));
+                    }
+                }
                 else
+                {
                     SetRotationRootSpace(Bones[i], Quaternion.FromToRotation(StartDirectionSucc[i], Positions[i + 1] - Positions[i]) * Quaternion.Inverse(StartRotationBone[i]));
+                }
                 SetPositionRootSpace(Bones[i], Positions[i]);
             }
         }
